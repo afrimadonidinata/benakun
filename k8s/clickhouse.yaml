@@ -101,6 +101,7 @@ spec:
     - metadata:
         name: clickhouse-data
       spec:
+        storageClassName: do-block-storage
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:

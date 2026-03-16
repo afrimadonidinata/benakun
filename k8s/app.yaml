@@ -1,8 +1,8 @@
 # BenAkun application — stateless web server backed by Tarantool + ClickHouse.
 #
 # Image: build locally then push to a registry, e.g.
-#   docker build -t ghcr.io/kokizzu/benakun:latest .
-#   docker push ghcr.io/kokizzu/benakun:latest
+#   docker build -t ghcr.io/afrimadonidinata/benakun:latest .
+#   docker push ghcr.io/afrimadonidinata/benakun:latest
 #
 # For minikube:  minikube image load benakun-app:latest  (then set imagePullPolicy: Never)
 # For kind:      kind load docker-image benakun-app:latest
@@ -16,6 +16,7 @@ metadata:
   name: benakun-uploads
   namespace: benakun
 spec:
+  storageClassName: do-block-storage
   accessModes:
     - ReadWriteOnce   # change to ReadWriteMany when running multiple replicas
   resources:
@@ -67,7 +68,7 @@ spec:
       # ---------------------------------------------------------------
       initContainers:
         - name: migrate
-          image: ghcr.io/kokizzu/benakun:latest
+          image: ghcr.io/afrimadonidinata/benakun:latest
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
@@ -87,7 +88,7 @@ spec:
       # ---------------------------------------------------------------
       containers:
         - name: app
-          image: ghcr.io/kokizzu/benakun:latest
+          image: ghcr.io/afrimadonidinata/benakun:latest
           imagePullPolicy: IfNotPresent
           command: ["/app/benakun"]
           args: ["web"]

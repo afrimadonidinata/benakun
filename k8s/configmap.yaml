@@ -28,7 +28,7 @@ data:
   # Update WEB_PROTO_DOMAIN to the actual public base domain (used for OAuth
   # redirect URLs and tenant invite links).
   WEB_PORT: "1235"
-  WEB_PROTO_DOMAIN: "https://benakun.example.com"
+  WEB_PROTO_DOMAIN: "https://akun.rumbia.id"
 
   # --- File uploads ---
   UPLOAD_DIR: "/app/uploads"
@@ -36,5 +36,5 @@ data:
   # --- OAuth ---
   # Comma-separated list of allowed redirect origins; must match Google Cloud
   # Console authorised JavaScript origins / redirect URIs.
-  OAUTH_URLS: "https://benakun.example.com"
+  OAUTH_URLS: "https://akun.rumbia.id"
   OAUTH_GOOGLE_SCOPES: "openid,email,profile"
