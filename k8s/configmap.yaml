@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benakun-config
+  namespace: benakun
+data:
+  # --- Tarantool (OLTP) ---
+  TARANTOOL_HOST: "tarantool"
+  TARANTOOL_PORT: "3301"
+
+  # --- ClickHouse (OLAP / action logs) ---
+  CLICKHOUSE_HOST: "clickhouse"
+  CLICKHOUSE_PORT: "9000"
+  CLICKHOUSE_DB: "default"
+  CLICKHOUSE_USE_SSL: "false"
+
+  # --- Mailer ---
+  # Switch MAILER_DEFAULT to "dockermailserver" and fill the secret keys for production SMTP.
+  MAILHOG_HOST: "mailhog"
+  MAILHOG_PORT: "1025"
+  MAILER_DEFAULT: "mailhog"
+  MAILER_REPLY_TO_EMAIL: "noreply@example.com"
+  MAILER_DEFAULT_FROM_EMAIL: "noreply@example.com"
+  MAILER_DEFAULT_FROM_NAME: "BenAkun"
+  MAILER_USE_BCC: "false"
+
+  # --- Web server ---
+  # Update WEB_PROTO_DOMAIN to the actual public base domain (used for OAuth
+  # redirect URLs and tenant invite links).
+  WEB_PORT: "1235"
+  WEB_PROTO_DOMAIN: "https://benakun.example.com"
+
+  # --- File uploads ---
+  UPLOAD_DIR: "/app/uploads"
+
+  # --- OAuth ---
+  # Comma-separated list of allowed redirect origins; must match Google Cloud
+  # Console authorised JavaScript origins / redirect URIs.
+  OAUTH_URLS: "https://benakun.example.com"
+  OAUTH_GOOGLE_SCOPES: "openid,email,profile"

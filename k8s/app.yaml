@@ -1,0 +1,130 @@
+# BenAkun application — stateless web server backed by Tarantool + ClickHouse.
+#
+# Image: build locally then push to a registry, e.g.
+#   docker build -t ghcr.io/kokizzu/benakun:latest .
+#   docker push ghcr.io/kokizzu/benakun:latest
+#
+# For minikube:  minikube image load benakun-app:latest  (then set imagePullPolicy: Never)
+# For kind:      kind load docker-image benakun-app:latest
+#
+# Horizontal scaling: the app is stateless, so replicas > 1 is safe.
+# However, the uploads PVC uses ReadWriteOnce; switch to ReadWriteMany
+# (e.g. NFS, AWS EFS, GCP Filestore) before increasing replicas.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: benakun-uploads
+  namespace: benakun
+spec:
+  accessModes:
+    - ReadWriteOnce   # change to ReadWriteMany when running multiple replicas
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: benakun-app
+  namespace: benakun
+  labels:
+    app.kubernetes.io/name: benakun-app
+spec:
+  selector:
+    app.kubernetes.io/name: benakun-app
+  ports:
+    - name: http
+      port: 1235
+      targetPort: 1235
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: benakun-app
+  namespace: benakun
+  labels:
+    app.kubernetes.io/name: benakun-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: benakun-app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: benakun-app
+    spec:
+      # fsGroup ensures the uploads PVC is writable by the appuser (uid 10001)
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+
+      # ---------------------------------------------------------------
+      # Init container: run DB migrations and retry until all databases
+      # are ready.  Overrides the Dockerfile ENTRYPOINT entirely.
+      # ---------------------------------------------------------------
+      initContainers:
+        - name: migrate
+          image: ghcr.io/kokizzu/benakun:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until /app/benakun migrate; do
+                echo "migration failed — databases not ready, retrying in 2s..."
+                sleep 2
+              done
+          envFrom:
+            - configMapRef:
+                name: benakun-config
+            - secretRef:
+                name: benakun-secret
+
+      # ---------------------------------------------------------------
+      # Main container: serve the web application
+      # ---------------------------------------------------------------
+      containers:
+        - name: app
+          image: ghcr.io/kokizzu/benakun:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/app/benakun"]
+          args: ["web"]
+          ports:
+            - name: http
+              containerPort: 1235
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: benakun-config
+            - secretRef:
+                name: benakun-secret
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 1235
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 1235
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: benakun-uploads

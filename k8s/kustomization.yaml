@@ -1,0 +1,24 @@
+# Apply everything at once:
+#   kubectl apply -k k8s/
+#
+# Or apply to a remote cluster:
+#   kubectl apply -k k8s/ --context=my-cluster
+#
+# Typical first-time setup order:
+#   1. kubectl apply -f k8s/namespace.yaml
+#   2. Edit k8s/secret.yaml with real credentials (or use --from-env-file)
+#   3. Edit k8s/configmap.yaml: set WEB_PROTO_DOMAIN and OAUTH_URLS
+#   4. Update the image reference in k8s/app.yaml, build & push the image
+#   5. kubectl apply -k k8s/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: benakun
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - tarantool.yaml
+  - clickhouse.yaml
+  - mailhog.yaml
+  - app.yaml
+  - ingress.yaml

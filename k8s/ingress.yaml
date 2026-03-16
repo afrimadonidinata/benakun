@@ -1,0 +1,65 @@
+# Ingress — requires an nginx ingress controller in the cluster.
+# Install: https://kubernetes.github.io/ingress-nginx/deploy/
+#
+# Multi-tenant routing: the app extracts the tenant code from the request
+# hostname subdomain (e.g. acme.benakun.example.com → tenantCode "acme").
+# Two rules are defined:
+#   1. The base domain           → main landing page / user area
+#   2. Wildcard subdomain        → per-tenant dashboards
+#
+# DNS: create an A record for benakun.example.com AND a wildcard A record
+# for *.benakun.example.com, both pointing to the ingress controller's
+# external IP / load-balancer.
+#
+# TLS: the tls section references a Secret named "benakun-tls".
+# Use cert-manager (https://cert-manager.io) to provision it automatically:
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+# Then annotate this Ingress with:
+#   cert-manager.io/cluster-issuer: letsencrypt-prod
+# and Let's Encrypt will issue a wildcard certificate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: benakun
+  namespace: benakun
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    # Uncomment the two lines below when cert-manager is installed:
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    # Base domain — main site, user registration, login
+    - host: "benakun.example.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: benakun-app
+                port:
+                  number: 1235
+
+    # Wildcard subdomain — per-tenant admin/reporting dashboards
+    # Each subdomain becomes a tenantCode in domain/hostmapper.go
+    - host: "*.benakun.example.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: benakun-app
+                port:
+                  number: 1235
+
+  # TLS — remove or comment this block if not using HTTPS yet
+  tls:
+    - hosts:
+        - "benakun.example.com"
+        - "*.benakun.example.com"
+      secretName: benakun-tls

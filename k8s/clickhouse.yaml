@@ -1,0 +1,107 @@
+# ClickHouse OLAP store — used for action logs and analytics.
+# For high-availability, consider the Altinity ClickHouse Operator
+# (https://github.com/Altinity/clickhouse-operator).
+#
+# NOTE on nofile ulimits: docker-compose sets nofile=262144 for ClickHouse.
+# In Kubernetes this is a node-level setting; most cloud-managed clusters
+# already provide limits >= 65535.  If ClickHouse logs "Too many open files"
+# errors, increase /proc/sys/fs/file-max on the nodes or use a privileged
+# init container: [sh, -c, "ulimit -n 262144"].
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: benakun
+  labels:
+    app.kubernetes.io/name: clickhouse
+spec:
+  selector:
+    app.kubernetes.io/name: clickhouse
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123
+      protocol: TCP
+    - name: native
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  namespace: benakun
+  labels:
+    app.kubernetes.io/name: clickhouse
+spec:
+  serviceName: clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clickhouse
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: clickhouse
+    spec:
+      containers:
+        - name: clickhouse
+          image: clickhouse/clickhouse-server:23.11.2.11
+          ports:
+            - name: http
+              containerPort: 8123
+              protocol: TCP
+            - name: native
+              containerPort: 9000
+              protocol: TCP
+          env:
+            # The ClickHouse image uses CLICKHOUSE_USER / CLICKHOUSE_PASSWORD to
+            # configure the default user.  The Go app reads CLICKHOUSE_USER /
+            # CLICKHOUSE_PASS — only CLICKHOUSE_PASSWORD differs here.
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: benakun-secret
+                  key: CLICKHOUSE_USER
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: benakun-secret
+                  key: CLICKHOUSE_PASS
+            - name: CLICKHOUSE_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: benakun-config
+                  key: CLICKHOUSE_DB
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8123
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 8123
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: clickhouse-data
+              mountPath: /var/lib/clickhouse
+  volumeClaimTemplates:
+    - metadata:
+        name: clickhouse-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

@@ -1,0 +1,101 @@
+# Tarantool OLTP store — single-replica StatefulSet with persistent volume.
+# For high-availability, consider Tarantool Cartridge or the Tarantool Kubernetes
+# Operator (https://github.com/tarantool/tarantool-operator).
+apiVersion: v1
+kind: Service
+metadata:
+  name: tarantool
+  namespace: benakun
+  labels:
+    app.kubernetes.io/name: tarantool
+spec:
+  selector:
+    app.kubernetes.io/name: tarantool
+  ports:
+    - name: binary
+      port: 3301
+      targetPort: 3301
+      protocol: TCP
+  # ClusterIP (default) — only reachable inside the cluster.
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tarantool
+  namespace: benakun
+  labels:
+    app.kubernetes.io/name: tarantool
+spec:
+  serviceName: tarantool
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tarantool
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tarantool
+    spec:
+      containers:
+        - name: tarantool
+          image: tarantool/tarantool:2.11.2
+          ports:
+            - name: binary
+              containerPort: 3301
+              protocol: TCP
+          env:
+            # The tarantool image uses TARANTOOL_USER_NAME / TARANTOOL_USER_PASSWORD
+            # to bootstrap the user on first start; these are distinct from the
+            # TARANTOOL_USER / TARANTOOL_PASS keys read by the Go app.
+            - name: TARANTOOL_USER_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: benakun-secret
+                  key: TARANTOOL_USER
+            - name: TARANTOOL_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: benakun-secret
+                  key: TARANTOOL_PASS
+            # Performance tuning (mirrors docker-compose values)
+            - name: TT_READAHEAD
+              value: "1632000"
+            - name: TT_VINYL_MEMORY
+              value: "268435456"
+            - name: TT_VINYL_CACHE
+              value: "2684354560"
+            - name: TT_NET_MSG_MAX
+              value: "76800"
+            - name: TT_MEMTX_MEMORY
+              value: "268435456"
+            - name: TT_VINYL_PAGE_SIZE
+              value: "8192"
+          readinessProbe:
+            tcpSocket:
+              port: 3301
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 3301
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: tarantool-data
+              mountPath: /var/lib/tarantool
+  volumeClaimTemplates:
+    - metadata:
+        name: tarantool-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
