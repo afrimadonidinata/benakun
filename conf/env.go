@@ -1,6 +1,8 @@
 package conf
 
 import (
+	"os"
+
 	"github.com/joho/godotenv"
 	"github.com/kokizzu/gotro/L"
 )
@@ -16,14 +18,27 @@ func IsDebug() bool {
 func LoadEnv() {
 	dirRetryList := []string{``, `../`, `../../`, `../../../`}
 	for _, dirPrefix := range dirRetryList {
+		loadedAny := false
 		envFile := dirPrefix + `.env`
-		err := godotenv.Overload(envFile)
-		if err == nil {
-			envOverrideFile := dirPrefix + `.env.override`
+		if _, err := os.Stat(envFile); err == nil {
+			loadedAny = true
+			err = godotenv.Overload(envFile)
+			L.PanicIf(err, `godotenv.Load .env`)
+		}
+		envOverrideFile := dirPrefix + `.env.override`
+		if _, err := os.Stat(envOverrideFile); err == nil {
+			loadedAny = true
 			err = godotenv.Overload(envOverrideFile)
 			L.PanicIf(err, `godotenv.Load .env.override`)
+		}
+		if loadedAny {
 			return
 		}
 	}
-	panic(`cannot load .env and .env.override`)
+
+	if os.Getenv(`TARANTOOL_HOST`) != `` || os.Getenv(`CLICKHOUSE_HOST`) != `` || os.Getenv(`WEB_PORT`) != `` {
+		return
+	}
+
+	panic(`cannot load .env/.env.override and no runtime environment provided`)
 }

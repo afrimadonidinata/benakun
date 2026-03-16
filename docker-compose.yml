@@ -1,5 +1,32 @@
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: benakun_app
+    depends_on:
+      - tarantool1
+      - clickhouse1
+      - mailhog1
+    env_file:
+      - .env
+    environment:
+      TARANTOOL_HOST: tarantool1
+      TARANTOOL_PORT: 3301
+      CLICKHOUSE_HOST: clickhouse1
+      CLICKHOUSE_PORT: 9000
+      MAILHOG_HOST: mailhog1
+      MAILHOG_PORT: 1025
+      WEB_PORT: 1235
+      WEB_PROTO_DOMAIN: http://localhost:1235
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "1235:1235"
+    volumes:
+      - benakun_uploads:/app/uploads
+    restart: unless-stopped
+
   tarantool1:
     image: tarantool/tarantool:2.11.2
     container_name: benakun_tarantool
@@ -13,7 +40,7 @@ services:
       TT_MEMTX_MEMORY: '268435456' # 1x
       TT_VINYL_PAGE_SIZE: '8192' # 1x
     volumes:
-      - ./_tmpdb/var_lib_tarantool:/var/lib/tarantool
+      - tarantool_data:/var/lib/tarantool
     ports:
       - "3302:3301"
 
@@ -28,13 +55,13 @@ services:
     environment:
       CLICKHOUSE_USER: "benakunC"
       CLICKHOUSE_PASSWORD: "benakunPC"
-      CLICHOUSE_DB: "benakunDB"
+      CLICKHOUSE_DB: "default"
     ulimits:
       nofile:
         soft: 262144
         hard: 262144
     volumes:
-      - ./_tmpdb/var_lib_clickhouse:/var/lib/clickhouse
+      - clickhouse_data:/var/lib/clickhouse
 
   mailhog1:
     image: mailhog/mailhog
@@ -42,3 +69,8 @@ services:
     ports:
       - "1026:1025"
       - "8026:8025"
+
+volumes:
+  tarantool_data:
+  clickhouse_data:
+  benakun_uploads:

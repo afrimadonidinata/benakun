@@ -1,0 +1,8 @@
+.git
+.github
+_tmpdb
+.env
+.env.override
+benakun
+main
+svelte/node_modules
